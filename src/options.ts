@@ -35,7 +35,8 @@ export class OptionsFactory {
                 type: 'string',
                 pattern: /^\d+$/,
                 message: 'Year must be only numbers',
-                required: true
+                required: true,
+                default: new Date().getFullYear().toString()
             },
             season: {
                 type: 'number',
