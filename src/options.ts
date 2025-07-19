@@ -1,6 +1,10 @@
 import prompt from "prompt";
 
-
+export interface IScrappedData {
+    Episode: number
+    Url: string
+    Type: string
+}
 
 export interface IOptions {
     [key: string]: any;
@@ -47,6 +51,11 @@ export class OptionsFactory {
                 type: 'number',
                 message: 'Parallel Download count must be number',
                 default: 1
+            },
+            loadFromSchema: {
+                type: 'boolean',
+                message: 'Load from file',
+                default: false
             }
         }
     };
@@ -63,26 +72,89 @@ export class OptionsFactory {
 
                 const properties = result as IOptions;
 
-                prompt.get({
-                    properties: {
-                        episodes: {
-                            type: "array",
-                            required: true,
-                            maxItems: properties.episodeCount
+                if(properties.loadFromSchema){
+                    prompt.get({
+                        properties: {
+                            generatedSchema: {
+                                type: "string",
+                                required: true,
+                            }
                         }
-                    }
-                }, function(err, result){
-                    if(err)
-                    {
-                        reject(err);
-                        return;
-                    }
+                    }, function(err, result){
+                        if(err)
+                        {
+                            reject(err);
+                            return;
+                        }
+                        const schemaText = OptionsFactory.parseSchemaText(result['generatedSchema'] as string, properties.episodeCount);
+                        if(schemaText === undefined){
+                            reject("Invalid schema");
+                            return;
+                        }
 
-                    properties.episodeUrls = result.episodes as string[];
-                    resolve(properties);
-                })
+                        properties.episodeUrls = schemaText;
+                        resolve(properties);
+                    })
+                }else{
+                    prompt.get({
+                        properties: {
+                            episodes: {
+                                type: "array",
+                                required: true,
+                                maxItems: properties.episodeCount
+                            }
+                        }
+                    }, function(err, result){
+                        if(err)
+                        {
+                            reject(err);
+                            return;
+                        }
+
+                        properties.episodeUrls = result.episodes as string[];
+                        resolve(properties);
+                    })
+                }
+
+
             })
         })
+    }
+
+    private static parseSchemaText(schema: string, episodeCount: number) : string[] | undefined {
+        try {
+            const jsonSchema : IScrappedData[] = JSON.parse(schema)
+            const map = jsonSchema.map(x => x.Url);
+            if(map.length === episodeCount)
+                return map
+
+            return undefined;
+        }catch(e){
+            const splitLines = schema.split("\n");
+            if(splitLines.length === episodeCount)
+            {
+                const strings: string[] = [];
+                splitLines.forEach(x => {
+                    if(!x.startsWith("https://pixeldrain"))
+                        return;
+
+                    if(x.includes("/u/"))
+                    {
+                        x = x.replace("/u/", "/api/file/");
+                    }
+
+                    if(!x.endsWith("?download")){
+                        x = x + "?download";
+                    }
+
+                    strings.push(x);
+                })
+
+                return strings;
+            }
+
+            return undefined;
+        }
     }
 
 }
